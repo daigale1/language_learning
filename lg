@@ -1,0 +1,246 @@
+import tkinter as tk
+from tkinter import messagebox, Toplevel, simpledialog
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from tabulate import tabulate
+import random
+
+sentences = []
+chosen_language = None
+
+def main():
+    root = tk.Tk()
+    root.title("Language Learning Tool")
+    
+    language_label = tk.Label(root, text="Pick a language you wish to learn (German, French, Italian):")
+    language_label.pack()
+    language_entry = tk.Entry(root)
+    language_entry.pack()
+    
+    choice_label = tk.Label(root, text="Do you want to start with numbers and the alphabet? (yes or no)")
+    choice_label.pack()
+    choice_entry = tk.Entry(root)
+    choice_entry.pack()
+    
+    simple_words_label = tk.Label(root, text="Do you want to learn simple words? (yes or no)")
+    simple_words_label.pack()
+    simple_words_entry = tk.Entry(root)
+    simple_words_entry.pack()
+    
+    take_quiz_label = tk.Label(root, text="Do you want to take a simple quiz? (yes or no)")
+    take_quiz_label.pack()
+    take_quiz_entry = tk.Entry(root)
+    take_quiz_entry.pack()
+    
+    additional_info_text = tk.Label(root, text="*If you wish to modify the selected language or other learning attributes, simply update your inputs*")
+    additional_info_text.pack()
+    
+    submit_button = tk.Button(root, text="Submit", command=lambda: on_submit(root, language_entry, choice_entry, simple_words_entry, take_quiz_entry))
+    submit_button.pack()
+    
+    root.mainloop()
+
+def on_submit(root, language_entry, choice_entry, simple_words_entry, take_quiz_entry):
+    global sentences
+    global chosen_language
+
+    chosen_language = language_entry.get().capitalize()
+    choice = choice_entry.get().lower()
+    
+    if chosen_language not in ["German", "French", "Italian"]:
+        messagebox.showerror("Error", "Invalid language selection.")
+        return
+    
+    if choice not in ["yes", "no"]:
+        messagebox.showerror("Error", "Invalid choice.")
+        return
+    
+    sentences = []
+    
+    if choice == "yes":
+        sentences.extend(generate_simple_sentences(chosen_language))
+        randomize_options(sentences)
+        scrape_language_info(chosen_language, "numbers")
+        scrape_language_info(chosen_language, "alphabet")
+    
+    if simple_words_entry.get().lower() == 'yes':
+        scrape_language_info(chosen_language, "simple_words")
+    
+    if take_quiz_entry.get().lower() == 'yes':
+        generate_quiz_questions(chosen_language)
+        if sentences:
+            quiz_simple_sentences()
+        else:
+            messagebox.showinfo("Information", "No quiz questions available.")
+
+def generate_simple_sentences(chosen_language):
+    sentences = []
+    if chosen_language == "German":
+        sentences = [
+            {"question": "Ich gehe ____ in den Park.", "options": "(a) schnell (b) gern"},
+            {"question": "Wir essen ____ im Restaurant.", "options": "(a) oft (b) nie"},
+            {"question": "Sie liest ____ ein Buch.", "options": "(a) immer (b) morgen"},
+            {"question": "Er spielt ____ Fußball.", "options": "(a) manchmal (b) viel"},
+            {"question": "Du trinkst ____ Wasser.", "options": "(a) wenig (b) viel"},
+            {"question": "Sie geht ____ zur Schule.", "options": "(a) heute (b) später"}
+        ]
+    elif chosen_language == "French":
+        sentences = [
+            {"question": "Je mange ____ une pizza.", "options": "(a) souvent (b) jamais"},
+            {"question": "Il va ____ à la plage.", "options": "(a) toujours (b) demain"},
+            {"question": "Elle lit ____ un livre.", "options": "(a) parfois (b) souvent"},
+            {"question": "Nous regardons ____ la télévision.", "options": "(a) rarement (b) maintenant"},
+            {"question": "Tu bois ____ du café.", "options": "(a) beaucoup (b) peu"},
+            {"question": "Vous jouez ____ au tennis.", "options": "(a) bien (b) toujours"}
+        ]
+    elif chosen_language == "Italian":
+        sentences = [
+            {"question": "Io mangio ____ la pizza.", "options": "(a) spesso (b) mai"},
+            {"question": "Loro vanno ____ al mare.", "options": "(a) sempre (b) adesso"},
+            {"question": "Lei legge ____ un libro.", "options": "(a) raramente (b) sempre"},
+            {"question": "Noi guardiamo ____ la televisione.", "options": "(a) sempre (b) poco"},
+            {"question": "Tu bevi ____ acqua.", "options": "(a) molta (b) poca"},
+            {"question": "Voi giocate ____ a calcio.", "options": "(a) sempre (b) mai"}
+        ]
+    return sentences
+
+def randomize_options(sentences):
+    for sentence in sentences:
+        options = sentence['options'].split()
+        random.shuffle(options)
+        sentence['options'] = ' '.join(options)
+
+def scrape_language_info(chosen_language, category=None):
+    urls = {
+        "German": {
+            "numbers": "https://www.busuu.com/en/german/numbers",
+            "alphabet": "https://www.busuu.com/en/german/alphabet",
+            "simple_words": "https://bilingua.io/short-and-easy-german-words"
+        },
+        "French": {
+            "numbers": "https://www.busuu.com/en/french/numbers",
+            "alphabet": "https://www.busuu.com/en/french/alphabet",
+            "simple_words": "https://www.mondly.com/french-phrases-expressions"
+        },
+        "Italian": {
+            "numbers": "https://www.busuu.com/en/italian/numbers",
+            "alphabet": "https://www.busuu.com/en/italian/alphabet",
+            "simple_words": "https://www.learnitalianpod.com/2023/01/31/italian-basic-words/"
+        }
+    }
+    language_urls = urls.get(chosen_language)
+    if category:
+        if category in language_urls:
+            driver = webdriver.Chrome()  
+            print(f"\n--- {chosen_language} {category.capitalize()} ---")
+            driver.get(language_urls[category])
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+            if category == "alphabet" or category == "numbers":
+                table_data = []
+                table = soup.find('div', class_='table-module')
+                if table:
+                    rows = table.find_all('tr')
+                    for row in rows:
+                        cols = row.find_all('td')
+                        cols = [col.text.strip() for col in cols]
+                        table_data.append(cols)
+                    print_tabulate(table_data, headers=["Character", "Pronunciation", "Example"])
+                else:
+                    print(f"No {category} table found.")
+            elif category == "simple_words":
+                words = []
+                if chosen_language == "Italian":
+                    div_block = soup.find_all('h3', class_='wp-block-heading')
+                    if div_block:
+                        for tag in div_block:
+                            italian_word = tag.text.strip()
+                            translation = tag.find_next('p').text.strip()  
+                            words.append((italian_word, translation))
+                        print_tabulate(words, headers=["Italian", "Translation"], tablefmt="pretty")
+                    else:
+                        print("No simple words found in Italian.")
+                else:
+                    words_list = soup.find('ol')
+                    for word in words_list.find_all('li'):
+                        words.append([word.text.strip()])
+                    print_tabulate(words, headers=["Words"], tablefmt="plain")
+            driver.quit()
+        else:
+            print(f"Invalid category: {category}")
+    else:
+        print(f"\n--- {chosen_language} Simple Words ---")
+        print("Simple words are not available for this language.")
+
+def generate_quiz_questions(chosen_language):
+    global sentences
+    if chosen_language == "German":
+        sentences.extend([
+            {"question": "Was bedeutet 'Haus' auf Englisch?", "options": "(a) House (b) Car"},
+            {"question": "Was ist die Hauptstadt von Deutschland?", "options": "(a) Berlin (b) Paris"},
+            {"question": "Was ist die Farbe des Himmels an einem sonnigen Tag?", "options": "(a) Blau (b) Grün"},
+            {"question": "Wie viele Tage hat eine Woche?", "options": "(a) 7 (b) 5"}
+        ])
+        correct_answers = [random.choice(['a', 'b']) for _ in range(len(sentences))]
+    elif chosen_language == "French":
+        sentences.extend([
+            {"question": "Que signifie 'maison' en anglais?", "options": "(a) House (b) Car"},
+            {"question": "Quelle est la capitale de la France?", "options": "(a) Paris (b) Berlin"},
+            {"question": "Quelle est la couleur du ciel par temps clair?", "options": "(a) Bleu (b) Vert"},
+            {"question": "Combien de jours y a-t-il dans une semaine?", "options": "(a) 7 (b) 5"}
+        ])
+        correct_answers = [random.choice(['a', 'b']) for _ in range(len(sentences))]
+    elif chosen_language == "Italian":
+        sentences.extend([
+            {"question": "Cosa significa 'casa' in inglese?", "options": "(a) House (b) Car"},
+            {"question": "Qual è la capitale dell'Italia?", "options": "(a) Rome (b) Milan"},
+            {"question": "Qual è il colore del cielo in una giornata di sole?", "options": "(a) Blu (b) Verde"},
+            {"question": "Quanti giorni ha una settimana?", "options": "(a) 7 (b) 5"}
+        ])
+        correct_answers = [random.choice(['a', 'b']) for _ in range(len(sentences))]
+
+    return correct_answers
+
+def quiz_simple_sentences():
+    global sentences
+    global chosen_language
+
+    correct_count = 0
+    total_questions = len(sentences)
+    correct_answers = generate_quiz_questions(chosen_language)
+
+    print(f"Total questions: {total_questions}, Correct answers: {len(correct_answers)}")
+
+    quiz_window = Toplevel()
+    quiz_window.title("Quiz")
+
+    for i, sentence in enumerate(sentences, 1):
+
+        question_label = tk.Label(quiz_window, text=f"Question {i}: {sentence['question']}")
+        question_label.pack()
+
+        options_label = tk.Label(quiz_window, text=f"Options: {sentence['options']}")
+        options_label.pack()
+
+        answer = simpledialog.askstring("Input", "Enter your answer (a or b):")
+
+        if answer and answer.lower() == correct_answers[i - 1]:
+            messagebox.showinfo("Result", "Correct!")
+            correct_count += 1
+        else:
+            messagebox.showerror("Result", "Incorrect.")
+
+    messagebox.showinfo("Result", f"You answered {correct_count} out of {total_questions} questions correctly.")
+
+    quiz_window.destroy()
+
+def print_tabulate(data, **kwargs):
+
+    tab_window = Toplevel()
+    tab_window.title("Tabulated Data")
+    text = tk.Text(tab_window)
+    text.pack()
+    text.insert(tk.END, tabulate(data, **kwargs))
+    text.configure(state='disabled') 
+
+if __name__ == "__main__":
+    main()
